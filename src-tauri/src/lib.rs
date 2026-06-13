@@ -4,6 +4,18 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn new_command(program: &str) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct VideoInfo {
     id: String,
@@ -51,7 +63,7 @@ fn open_folder(path: String) -> Result<(), String> {
 #[tauri::command]
 async fn search_videos(query: String) -> Result<Vec<VideoInfo>, String> {
     // Search using yt-dlp --dump-json "ytsearch10:<query>"
-    let output = Command::new("yt-dlp")
+    let output = new_command("yt-dlp")
         .args(&[
             "--dump-json",
             &format!("ytsearch12:{}", query),
@@ -93,7 +105,7 @@ async fn search_videos(query: String) -> Result<Vec<VideoInfo>, String> {
 #[tauri::command]
 async fn get_video_info(url: String) -> Result<Vec<VideoInfo>, String> {
     // Get info using flat-playlist first to check if it's a playlist or video very fast
-    let output = Command::new("yt-dlp")
+    let output = new_command("yt-dlp")
         .args(&[
             "--dump-json",
             "--flat-playlist",
@@ -185,7 +197,7 @@ fn download_video(
         // Add the url
         args.push(&url);
 
-        let mut child = match Command::new("yt-dlp")
+        let mut child = match new_command("yt-dlp")
             .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -302,7 +314,7 @@ pub fn run() {
         .setup(|_app| {
             tauri::async_runtime::spawn(async {
                 // Ejecutar actualización de yt-dlp de forma silenciosa al iniciar
-                let _ = Command::new("yt-dlp")
+                let _ = new_command("yt-dlp")
                     .arg("-U")
                     .status();
             });
